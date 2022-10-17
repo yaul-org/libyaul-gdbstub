@@ -5,5 +5,4 @@ build/
 *.iso
 *.log
 compile_commands.json
-gdbstub.h
 gdbstub.bin

@@ -1,5 +1,3 @@
-/* -*- mode: c -*- */
-
 /*
  * Copyright (c) 2012-2019
  * See LICENSE for details.
@@ -14,6 +12,7 @@
 #include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdint.h>
 
 #include <bios.h>
 
@@ -24,6 +23,8 @@
 #include <smpc/smc.h>
 
 #include <mm/memb.h>
+
+#include "gdbstub.h"
 
 #define REG_R0   0
 #define REG_R1   1
@@ -98,7 +99,7 @@ struct bp {
 
 static_assert(sizeof(bp_t) == 16);
 
-static uintptr_t _calculate_pc(cpu_registers_t *reg_file);
+static uintptr_t _pc_calculate(cpu_registers_t *reg_file);
 
 static void _bp_init(void);
 static bool _bp_list_empty(void);
@@ -165,25 +166,25 @@ start(void)
         gdb_break();
 }
 
-static void
-_gdb_putc(int c)
+void
+__gdb_putc(int c)
 {
         assert(gdb_device.byte_write != NULL);
         gdb_device.byte_write(c);
 }
 
-static int
-_gdb_getc(void)
+int
+__gdb_getc(void)
 {
         assert(gdb_device.byte_read != NULL);
         return gdb_device.byte_read();
 }
 
-static void
-_gdb_step(cpu_registers_t *reg_file, uint32_t address)
+void
+__gdb_step(cpu_registers_t *reg_file, uint32_t address)
 {
         /* Determine where we'll be going */
-        const uintptr_t pc = (address != 0x00000000) ? address : _calculate_pc(reg_file);
+        const uintptr_t pc = (address != 0x00000000) ? address : _pc_calculate(reg_file);
 
         uint16_t * const p = (uint16_t *)pc;
 
@@ -196,8 +197,8 @@ _gdb_step(cpu_registers_t *reg_file, uint32_t address)
         _stepping = true;
 }
 
-static int
-_gdb_remove_break(uint32_t type, uint32_t addr, uint32_t kind __unused)
+int
+__gdb_break_remove(uint32_t type, uint32_t addr, uint32_t kind __unused)
 {
         if (addr == 0x00000000) {
                 return -1;
@@ -219,8 +220,8 @@ _gdb_remove_break(uint32_t type, uint32_t addr, uint32_t kind __unused)
         }
 }
 
-static int
-_gdb_break(uint32_t type, uint32_t addr, uint32_t kind __unused)
+int
+__gdb_break(uint32_t type, uint32_t addr, uint32_t kind __unused)
 {
         if (addr == 0x00000000) {
                 return -1;
@@ -238,8 +239,8 @@ _gdb_break(uint32_t type, uint32_t addr, uint32_t kind __unused)
         }
 }
 
-static void __noreturn
-_gdb_kill(void)
+void __noreturn
+__gdb_kill(void)
 {
         while (true) {
         }
@@ -248,8 +249,8 @@ _gdb_kill(void)
         __builtin_unreachable();
 }
 
-static void
-_gdb_monitor_entry(cpu_registers_t *reg_file)
+void
+__gdb_monitor_entry(cpu_registers_t *reg_file)
 {
         uint16_t *p;
         uint32_t *pc;
@@ -286,8 +287,8 @@ _gdb_monitor_entry(cpu_registers_t *reg_file)
         }
 }
 
-static bool
-_gdb_register_file_read(cpu_registers_t *reg_file, uint32_t n, uint32_t *r)
+bool
+__gdb_register_file_read(cpu_registers_t *reg_file, uint32_t n, uint32_t *r)
 {
         switch (n) {
         case REG_R0:
@@ -336,8 +337,8 @@ _gdb_register_file_read(cpu_registers_t *reg_file, uint32_t n, uint32_t *r)
         }
 }
 
-static bool
-_gdb_register_file_write(cpu_registers_t *reg_file, uint32_t n, uint32_t r)
+bool
+__gdb_register_file_write(cpu_registers_t *reg_file, uint32_t n, uint32_t r)
 {
         uint32_t *p;
 
@@ -397,7 +398,7 @@ _gdb_register_file_write(cpu_registers_t *reg_file, uint32_t n, uint32_t r)
  *
  * Returns the destination address */
 static uintptr_t
-_calculate_pc(cpu_registers_t *reg_file)
+_pc_calculate(cpu_registers_t *reg_file)
 {
         uint16_t opcode;
         uint32_t pc;
