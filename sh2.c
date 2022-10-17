@@ -152,7 +152,7 @@ start(void)
 
         cpu_intc_ihr_set(CPU_INTC_INTERRUPT_UBC, __gdb_ihr_ubc);
 
-        cpu_intc_ihr_set(TRAPA_VECTOR_NUMBER, __gdb_ihr_break);
+        cpu_intc_ihr_set(GDBSTUB_TRAPA_VECTOR_NUMBER, __gdb_ihr_break);
 
         /* Initialize UBC */
 
@@ -191,7 +191,7 @@ __gdb_step(cpu_registers_t *reg_file, uint32_t address)
         _bp_step.addr = (void *)p;
         _bp_step.instruction = *p;
 
-        *p = INSTRN_TRAPA(TRAPA_VECTOR_NUMBER);
+        *p = INSTRN_TRAPA(GDBSTUB_TRAPA_VECTOR_NUMBER);
 
         /* We're stepping, be aware of breakpoints and watchpoints */
         _stepping = true;
@@ -522,7 +522,7 @@ _bp_list_breakpoint_add(void *addr)
         bp->addr = addr;
         bp->instruction = *addr_p;
 
-        *addr_p = INSTRN_TRAPA(TRAPA_VECTOR_NUMBER);
+        *addr_p = INSTRN_TRAPA(GDBSTUB_TRAPA_VECTOR_NUMBER);
 
         TAILQ_INSERT_TAIL(&_bp_list, bp, entries);
 

@@ -19,7 +19,6 @@ SECTIONS
 {
   .header ORIGIN(ram) :
   {
-     LONG(ORIGIN(ram));
      LONG(0x00010000); /* Version: BCD: Major, minor, patch */
      LONG(_gdb_init);
      LONG(_gdb_device);

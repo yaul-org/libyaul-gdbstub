@@ -16,12 +16,13 @@
 
 __BEGIN_DECLS
 
-#define TRAPA_VECTOR_NUMBER (32)
+#define GDBSTUB_LOAD_ADDRESS        (0x202FE000)
+#define GDBSTUB_TRAPA_VECTOR_NUMBER (32)
 
 static inline void __always_inline
 gdb_break(void)
 {
-        cpu_instr_trapa(TRAPA_VECTOR_NUMBER);
+        cpu_instr_trapa(GDBSTUB_TRAPA_VECTOR_NUMBER);
 }
 
 typedef void (*gdb_device_init_t)(void);
@@ -42,7 +43,6 @@ typedef struct {
 } __packed gdb_version_t;
 
 typedef struct {
-        void *load_address;
         gdb_version_t version;
         void (*init)(void);
         gdb_device_t *device;
