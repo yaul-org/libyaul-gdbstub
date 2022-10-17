@@ -26,8 +26,6 @@ typedef void (*gdb_device_init_t)(void);
 typedef uint8_t (*gdb_device_byte_read_t)(void);
 typedef void (*gdb_device_byte_write_t)(uint8_t value);
 
-typedef void (*gdb_interface_exit)(void);
-
 typedef struct {
         gdb_device_init_t init;
         gdb_device_byte_read_t byte_read;
@@ -35,14 +33,17 @@ typedef struct {
 } __aligned(16) gdb_device_t;
 
 typedef struct {
-        gdb_interface_exit exit;
-} __aligned(16) gdb_interface_t;
+        unsigned int :8;
+        unsigned int major:8;
+        unsigned int minor:8;
+        unsigned int patch:8;
+} __packed gdb_version_t;
 
 typedef struct {
         void *start;
+        gdb_version_t version;
         void (*init)(void);
         gdb_device_t *device;
-        gdb_interface_t *interface;
 } __aligned(16) gdbstub_t;
 
 __END_DECLS

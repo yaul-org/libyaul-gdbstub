@@ -125,10 +125,6 @@ gdb_device_t gdb_device = {
         .byte_write = NULL
 };
 
-gdb_interface_t gdb_interface = {
-        .exit = NULL
-};
-
 void gdb_init(void) __attribute__ ((alias("start")));
 
 void
@@ -245,8 +241,8 @@ _gdb_break(uint32_t type, uint32_t addr, uint32_t kind __unused)
 static void __noreturn
 _gdb_kill(void)
 {
-        assert(gdb_interface.exit != NULL);
-        gdb_interface.exit();
+        while (true) {
+        }
 
         /* There's no guarantee that exit will actually not reach here */
         __builtin_unreachable();
