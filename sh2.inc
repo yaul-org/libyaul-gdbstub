@@ -15,10 +15,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 
-#include <usb-cart.h>
-
-#include <arp.h>
-
 #include <bios.h>
 
 #include <cpu/intc.h>
@@ -29,34 +25,29 @@
 
 #include <mm/memb.h>
 
-#include <internal.h>
-#include <mm/memb-internal.h>
-
-#include "gdb.h"
-
-#define REG_R0          0
-#define REG_R1          1
-#define REG_R2          2
-#define REG_R3          3
-#define REG_R4          4
-#define REG_R5          5
-#define REG_R6          6
-#define REG_R7          7
-#define REG_R8          8
-#define REG_R9          9
-#define REG_R10         10
-#define REG_R11         11
-#define REG_R12         12
-#define REG_R13         13
-#define REG_R14         14
-#define REG_SP          15
-#define REG_PC          16
-#define REG_PR          17
-#define REG_GBR         18
-#define REG_VBR         19
-#define REG_MACH        20
-#define REG_MACL        21
-#define REG_SR          22
+#define REG_R0   0
+#define REG_R1   1
+#define REG_R2   2
+#define REG_R3   3
+#define REG_R4   4
+#define REG_R5   5
+#define REG_R6   6
+#define REG_R7   7
+#define REG_R8   8
+#define REG_R9   9
+#define REG_R10  10
+#define REG_R11  11
+#define REG_R12  12
+#define REG_R13  13
+#define REG_R14  14
+#define REG_SP   15
+#define REG_PC   16
+#define REG_PR   17
+#define REG_GBR  18
+#define REG_VBR  19
+#define REG_MACH 20
+#define REG_MACL 21
+#define REG_SR   22
 
 #define INSTRN_TRAPA(i)         (0xC300 | ((i) & 0xFF))
 
@@ -94,8 +85,6 @@ extern void __gdb_exception_illegal_instruction(void);
 extern void __gdb_exception_illegal_slot(void);
 extern void __gdb_ihr_ubc(void);
 
-static uintptr_t _calculate_pc(cpu_registers_t *reg_file);
-
 typedef TAILQ_HEAD(bp_list, bp) bp_list_t;
 
 typedef struct bp bp_t;
@@ -109,6 +98,8 @@ struct bp {
 
 static_assert(sizeof(bp_t) == 16);
 
+static uintptr_t _calculate_pc(cpu_registers_t *reg_file);
+
 static void _bp_init(void);
 static bool _bp_list_empty(void);
 static bp_t *_bp_list_breakpoint_alloc(void);
@@ -120,24 +111,37 @@ static bp_t *_bp_list_breakpoint_find(void *addr);
 static bool _stepping = false;
 
 static bp_list_t _bp_list;
-static memb_t _bp_memb;
+
+MEMB(_bp_memb, bp_t, 16, 4);
 
 static bp_t _bp_step = {
         .addr        = NULL,
         .instruction = 0x0000
 };
 
-static void
-_gdb_sh2_init(void)
+gdb_device_t gdb_device = {
+        .init       = NULL,
+        .byte_read  = NULL,
+        .byte_write = NULL
+};
+
+gdb_interface_t gdb_interface = {
+        .exit = NULL
+};
+
+void gdb_init(void) __attribute__ ((alias("start")));
+
+void
+start(void)
 {
-        const uint32_t sr_mask = cpu_intc_mask_get();
+        const uint8_t sr_mask = cpu_intc_mask_get();
         cpu_intc_mask_set(15);
 
-        gdb_device_init();
+        assert(gdb_device.init != NULL);
+        gdb_device.init();
 
         _bp_init();
 
-        /* Clear */
         _stepping = false;
 
         cpu_intc_ihr_set(CPU_INTC_INTERRUPT_ILLEGAL_INSTRUCTION,
@@ -151,7 +155,7 @@ _gdb_sh2_init(void)
 
         cpu_intc_ihr_set(CPU_INTC_INTERRUPT_UBC, __gdb_ihr_ubc);
 
-        cpu_intc_ihr_set(GDB_TRAPA_VECTOR_NUMBER, __gdb_ihr_break);
+        cpu_intc_ihr_set(TRAPA_VECTOR_NUMBER, __gdb_ihr_break);
 
         /* Initialize UBC */
 
@@ -168,13 +172,15 @@ _gdb_sh2_init(void)
 static void
 _gdb_putc(int c)
 {
-        gdb_device_byte_write(c);
+        assert(gdb_device.byte_write != NULL);
+        gdb_device.byte_write(c);
 }
 
 static int
 _gdb_getc(void)
 {
-        return gdb_device_byte_read();
+        assert(gdb_device.byte_read != NULL);
+        return gdb_device.byte_read();
 }
 
 static void
@@ -188,7 +194,7 @@ _gdb_step(cpu_registers_t *reg_file, uint32_t address)
         _bp_step.addr = (void *)p;
         _bp_step.instruction = *p;
 
-        *p = INSTRN_TRAPA(GDB_TRAPA_VECTOR_NUMBER);
+        *p = INSTRN_TRAPA(TRAPA_VECTOR_NUMBER);
 
         /* We're stepping, be aware of breakpoints and watchpoints */
         _stepping = true;
@@ -239,7 +245,11 @@ _gdb_break(uint32_t type, uint32_t addr, uint32_t kind __unused)
 static void __noreturn
 _gdb_kill(void)
 {
-        abort();
+        assert(gdb_interface.exit != NULL);
+        gdb_interface.exit();
+
+        /* There's no guarantee that exit will actually not reach here */
+        __builtin_unreachable();
 }
 
 static void
@@ -448,7 +458,7 @@ _bp_init(void)
         _bp_step.addr = 0x00000000;
         _bp_step.instruction = 0x0000;
 
-        __memb_memb_alloc(&_bp_memb, 16, sizeof(bp_t), 4);
+        memb_init(&_bp_memb);
 
         TAILQ_INIT(&_bp_list);
 }
@@ -515,7 +525,7 @@ _bp_list_breakpoint_add(void *addr)
         bp->addr = addr;
         bp->instruction = *addr_p;
 
-        *addr_p = INSTRN_TRAPA(GDB_TRAPA_VECTOR_NUMBER);
+        *addr_p = INSTRN_TRAPA(TRAPA_VECTOR_NUMBER);
 
         TAILQ_INSERT_TAIL(&_bp_list, bp, entries);
 
@@ -538,20 +548,4 @@ _bp_list_breakpoint_find(void *addr)
         }
 
         return NULL;
-}
-
-void __weak
-gdb_device_init(void)
-{
-}
-
-uint8_t __weak
-gdb_device_byte_read(void)
-{
-        return 0;
-}
-
-void __weak
-gdb_device_byte_write(uint8_t value __unused)
-{
 }
