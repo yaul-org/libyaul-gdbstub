@@ -1,8 +1,6 @@
 Standalone GDB stub
 ===
 
-## About
-
 ## Build
 
 1. Run `make`
