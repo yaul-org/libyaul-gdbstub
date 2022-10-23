@@ -14,7 +14,7 @@ SH_SRCS:= \
 	helpers.c \
 	exceptions.sx
 
-SH_SPECS:= $(THIS_ROOT)/gdb.specs
+SH_SPECS:= $(THIS_ROOT)/gdbstub.specs
 
 SH_LIBRARIES:=
 SH_CFLAGS+= -g -Os -I.
